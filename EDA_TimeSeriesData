@@ -1,0 +1,191 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+plt.style.use('seaborn-white')
+%matplotlib inline
+import scipy
+from pandas.plotting import lag_plot
+from statsmodels.graphics.tsaplots import month_plot, seasonal_plot, quarter_plot
+from statsmodels.tsa.seasonal import seasonal_decompose
+from scipy import signal
+import warnings
+warnings.filterwarnings("ignore")
+np.random.seed(42)
+
+from dateutil.parser import parse
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.nonparametric.smoothers_lowess import lowess
+from statsmodels.tsa.stattools import grangercausalitytests
+
+
+# Read dataset with 'Date' as index
+retaildata = pd.read_csv("/content/ts_frenchretail.csv", index_col = 'Date')
+
+retaildata['Sales'] = retaildata['Sales'].div(1000).round(2)
+
+plt.figure(figsize=(8,8)) 
+plt.xticks(rotation = 90)
+plt.plot(retaildata.index,retaildata.Sales)
+
+retaildata['Year'] = pd.DatetimeIndex(retaildata.index).year
+retaildata['Month'] = pd.DatetimeIndex(retaildata.index).month
+
+# Box plot to see distribution of sales in each year
+plt.figure(figsize=(10,10))
+retaildata.boxplot(column=['Sales'], by=['Year'])
+
+# Create year-wise subplots to visualize the quarterly Sales per year
+#plot data
+fig, axes = plt.subplots(2,3, figsize=(15,5))
+for (year, group), ax in zip(retaildata.groupby('Year'), axes.flatten()):
+    group.plot(x='Month', y='Sales', kind='line', ax=ax, title=year)
+    
+ # Percentage growth each year
+# Calculating a simple moving average
+retaildata['SMA'] = retaildata['Sales'].rolling(4).mean()
+retaildata
+
+retaildata['percentGrowthInSMA'] = retaildata['SMA'].pct_change().mul(100)
+
+sns.distplot(retaildata.Sales)
+
+dt_retaildata = pd.read_csv("/content/ts_frenchretail.csv")
+dt_retaildata['Sales'] = dt_retaildata['Sales'].div(1000).round(2)
+dt_retaildata1 = dt_retaildata.iloc[0:1]
+dt_retaildata1
+dt_retaildata2 = dt_retaildata.iloc[4:5]
+dt_retaildata2
+dt_retaildata3 = dt_retaildata.iloc[8:9]
+dt_retaildata3
+dt_retaildata4 = dt_retaildata.iloc[12:13]
+dt_retaildata4
+dt_retaildata5 = dt_retaildata.iloc[16:17]
+dt_retaildata5
+dt_retaildata6 = dt_retaildata.iloc[20:21]
+dt_retaildata6
+dt_retaildata_q1 = pd.concat([dt_retaildata1,dt_retaildata2,dt_retaildata3,dt_retaildata4,dt_retaildata5,dt_retaildata6])
+dt_retaildata_q1
+
+# Graph for Q1 across 6 years (Same graph gets repeated 2 times)
+dt_retaildata_q1.index = pd.PeriodIndex(pd.to_datetime(dt_retaildata_q1.Date),freq='Q')
+quarter_plot(dt_retaildata_q1['Sales'])
+
+# Graph for Q2 across 6 years (Same graph gets repeated 2 times)
+dt_retaildata1 = dt_retaildata.iloc[1:2]
+dt_retaildata1
+dt_retaildata2 = dt_retaildata.iloc[5:6]
+dt_retaildata2
+dt_retaildata3 = dt_retaildata.iloc[9:10]
+dt_retaildata3
+dt_retaildata4 = dt_retaildata.iloc[13:14]
+dt_retaildata4
+dt_retaildata5 = dt_retaildata.iloc[17:18]
+dt_retaildata5
+dt_retaildata6 = dt_retaildata.iloc[21:22]
+dt_retaildata6
+dt_retaildata_q2 = pd.concat([dt_retaildata1,dt_retaildata2,dt_retaildata3,dt_retaildata4,dt_retaildata5,dt_retaildata6])
+dt_retaildata_q2
+dt_retaildata_q2.index = pd.PeriodIndex(pd.to_datetime(dt_retaildata_q2.Date),freq='Q')
+quarter_plot(dt_retaildata_q2['Sales'])
+
+# Graph for Q3 across 6 years (Same graph gets repeated 2 times)
+dt_retaildata1 = dt_retaildata.iloc[2:3]
+dt_retaildata1
+dt_retaildata2 = dt_retaildata.iloc[6:7]
+dt_retaildata2
+dt_retaildata3 = dt_retaildata.iloc[10:11]
+dt_retaildata3
+dt_retaildata4 = dt_retaildata.iloc[14:15]
+dt_retaildata4
+dt_retaildata5 = dt_retaildata.iloc[18:19]
+dt_retaildata5
+dt_retaildata6 = dt_retaildata.iloc[22:23]
+dt_retaildata6
+dt_retaildata_q3 = pd.concat([dt_retaildata1,dt_retaildata2,dt_retaildata3,dt_retaildata4,dt_retaildata5,dt_retaildata6])
+dt_retaildata_q3
+dt_retaildata_q3.index = pd.PeriodIndex(pd.to_datetime(dt_retaildata_q3.Date),freq='Q')
+quarter_plot(dt_retaildata_q3['Sales'])
+
+# Graph for Q4 across 6 years (Same graph gets repeated 2 times)
+dt_retaildata1 = dt_retaildata.iloc[3:4]
+dt_retaildata1
+dt_retaildata2 = dt_retaildata.iloc[7:8]
+dt_retaildata2
+dt_retaildata3 = dt_retaildata.iloc[11:12]
+dt_retaildata3
+dt_retaildata4 = dt_retaildata.iloc[15:16]
+dt_retaildata4
+dt_retaildata5 = dt_retaildata.iloc[19:20]
+dt_retaildata5
+dt_retaildata6 = dt_retaildata.iloc[23:24]
+dt_retaildata6
+dt_retaildata_q4 = pd.concat([dt_retaildata1,dt_retaildata2,dt_retaildata3,dt_retaildata4,dt_retaildata5,dt_retaildata6])
+dt_retaildata_q4
+dt_retaildata_q4.index = pd.PeriodIndex(pd.to_datetime(dt_retaildata_q4.Date),freq='Q')
+quarter_plot(dt_retaildata_q4['Sales'])
+
+# Combining Q1, Q2, Q3, Q4 across 2012-2017 (6 years) (Same graph gets repeated 2 times)
+dt_retaildata_q1_q2_q3_q4 = pd.concat([dt_retaildata_q1,dt_retaildata_q2,dt_retaildata_q3,dt_retaildata_q4])
+dt_retaildata_q1_q2_q3_q4.index = pd.PeriodIndex(pd.to_datetime(dt_retaildata_q1_q2_q3_q4.Date),freq='Q')
+quarter_plot(dt_retaildata_q1_q2_q3_q4['Sales'])
+
+# Distribution plot of each year
+plt.scatter(retaildata.Year,retaildata.Sales)
+
+dt_retaildata['Quarter'] = pd.PeriodIndex(pd.to_datetime(dt_retaildata.Date),freq='Q')
+dt_retaildata
+dt_retaildata['Year'] = pd.DatetimeIndex(dt_retaildata.Date).year
+dt_retaildata = dt_retaildata.drop(['Date'],axis=1)
+dt_retaildata
+
+dt_retaildata['Q'] = dt_retaildata['Quarter'].astype(str).str[-2:]
+dt_retaildata
+
+dt_retaildata.pivot_table(index = 'Year', columns = 'Q' , values = 'Sales').plot(kind = 'bar', stacked = True)
+
+# Visualize Rolling mean - its not constant
+dt_retaildata['RollingMean'] = dt_retaildata['Sales'].rolling(7).mean()
+dt_retaildata.RollingMean.plot()
+
+# Rolling standard deviation - Its not constant
+dt_retaildata['RollingSTD'] = dt_retaildata['Sales'].rolling(8).std()
+dt_retaildata.RollingSTD.plot()
+
+# Visualize Rolling Covariance - Its not constant
+dt_retaildata['RollingCov'] = dt_retaildata['Sales'].rolling(9).cov()
+dt_retaildata.RollingCov.plot()
+
+# Applying seasonal decompose
+# Setting index back to date
+df = pd.read_csv("/content/ts_frenchretail.csv", parse_dates=['Date'], index_col='Date')
+
+# Applying seasonal decompose
+result = seasonal_decompose(df, model='additive')
+
+# Plotting trend, seasonality, Residuals in sales data
+result.plot()
+plt.show()
+
+# Using scipy: Subtract the line of best fit
+detrended = signal.detrend(df.Sales.values)
+plt.plot(detrended)
+plt.title('Sales detrended by subtracting the least squares fit', fontsize=14)
+
+# Decomposing time-series first
+result_mul = seasonal_decompose(df['Sales'], model='multiplicative', extrapolate_trend='freq')
+# Detrending the time-series by trend component
+detrended = df.Sales.values - result_mul.trend
+
+# Plotting the detrended time series
+plt.plot(detrended)
+plt.title('Sales detrended by subtracting the trend component', fontsize=15)
+
+# Visualize lag plots
+fig, axes = plt.subplots(1, 4, figsize=(10,3), sharex=True, sharey=True, dpi=100)
+for i, ax in enumerate(axes.flatten()[:4]):
+    lag_plot(df.Sales, lag=i+1, ax=ax, c='firebrick')
+    ax.set_title('Lag ' + str(i+1))
+
+fig.suptitle('Lag Plots of Sales', y=1.05)    
+plt.show()
