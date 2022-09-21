@@ -1,0 +1,75 @@
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from matplotlib import pyplot as plt
+from mlxtend.frequent_patterns import apriori
+from mlxtend.frequent_patterns import association_rules
+
+orders = pd.read_csv("/content/Instacart/orders.csv")
+products = pd.read_csv("/content/Instacart/products.csv")
+dept = pd.read_csv("/content/Instacart/departments.csv")
+aisle = pd.read_csv("/content/Instacart/aisles.csv")
+order_prod_train = pd.read_csv("/content/Instacart/order_products__train.csv")
+
+orders_merged_df = orders.merge(order_prod_train, how='inner', on='order_id')
+orders_merged_df.head()
+
+prod_orders_df = products.merge(order_prod_train, how='inner', on='product_id')
+prod_orders_df.head()
+
+prod_count = prod_orders_df.groupby(['product_id']).size()
+display(prod_count)
+
+sns.histplot(data=prod_orders_df, x='department_id')
+
+sns.histplot(data=orders_merged_df, x='order_dow')
+
+sns.histplot(data=orders_merged_df, x='order_hour_of_day')
+
+sns.histplot(data=prod_orders_df, x='reordered')
+
+dow_hod_reorder_count = orders_merged_df.groupby(['order_dow','order_hour_of_day','reordered',]).size()
+display(dow_hod_reorder_count)
+dow_hod_reorder_count.head()
+
+orders_grouped_df = orders_merged_df.groupby(['order_dow','order_hour_of_day','reordered']).size().reset_index()
+orders_grouped_df.head()
+
+orders_grouped_df.columns = ['order_dow','order_hour_of_day','reordered','count']
+orders_grouped_df.head()
+
+plt.figure(figsize=(20,20))
+orders_grouped_df.pivot_table(columns=['order_dow','order_hour_of_day','reordered']).hist()
+
+orders_pivot = orders_grouped_df.pivot_table(columns=['order_dow','order_hour_of_day','reordered'])
+orders_pivot
+
+prod_count = prod_orders_df.groupby(['product_id']).size().reset_index()
+#display(prod_count)
+prod_count.columns = ['product_id','count']
+prod_count.head()
+
+prod_count.sort_values(by=['count'],ascending=False)
+prod_count_sorted = prod_count.sort_values(by=['count'],ascending=False).head(100)
+display(prod_count_sorted)
+
+orders_merged_df.drop(columns=['user_id','eval_set','order_number','order_dow','order_hour_of_day','days_since_prior_order','add_to_cart_order','reordered'],inplace=True)
+
+orders_merged_df = orders_merged_df[orders_merged_df.product_id.isin(prod_count_sorted.product_id)]
+orders_merged_df.product_id.value_counts() # Making sure its only the top 100 values
+
+basket = (orders_merged_df
+          .groupby(['order_id', 'product_id'])
+          .size().unstack().reset_index().fillna(0)
+          .set_index('order_id'))
+basket
+
+frequent_itemsets = apriori(basket, min_support=0.005, use_colnames=True)
+
+rules1 = association_rules(frequent_itemsets, metric="lift", min_threshold=1)
+rules1
+
+rules2 = association_rules(frequent_itemsets, metric="confidence", min_threshold=0.50)
+rules2
+
+prod_orders_df[prod_orders_df.product_id.isin([47209, 27966,13176])].product_name.unique()
