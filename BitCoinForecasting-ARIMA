@@ -1,0 +1,277 @@
+import warnings
+warnings.simplefilter('ignore')
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from matplotlib import pyplot as plt
+from math import sqrt
+from sklearn.metrics import mean_squared_error
+from statsmodels.tsa.arima_model import ARMA
+from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.seasonal import seasonal_decompose 
+from statsmodels.graphics.tsaplots import plot_acf
+from statsmodels.graphics.tsaplots import plot_pacf
+import statsmodels.api as sm
+import itertools
+
+# Read dataset
+df = pd.read_csv('/content/BTC.csv')
+df.head()
+
+# Convert Data column to datetime index
+df['Date'] = pd.to_datetime(df['Date'])
+df1 = df.set_index('Date')
+df1.head()
+
+# Visualize data
+df1.plot(y=["Close","Volume"],secondary_y="Volume",figsize=(16,8))
+plt.ylabel("Closing Price")
+plt.show()
+plt.close()
+
+# 12 month simple moving average and standard deviation
+df1[['Close','Volume']].rolling(12).mean().plot(label='12 SMA',secondary_y="Volume",figsize=(16,8))
+df1[['Close','Volume']].rolling(12).std().plot(secondary_y="Volume",label='12 STD')
+df1[['Close','Volume']].plot(secondary_y="Volume")
+plt.legend()
+plt.show()
+plt.close()
+
+df1.replace([np.inf, -np.inf], np.nan,inplace=True)
+
+abc = df1['Close'].quantile(0.5)
+df1 = df1.fillna(abc)
+
+df1_corr = df1[df1['Volume']<1e11].corr()
+sns.heatmap(df1_corr)
+
+sns.pairplot(df1[df1['Volume']<1e11])
+
+# Applying ADF test
+fuller_test = adfuller(df1['Close'])
+fuller_test
+
+def test_p_value(data):
+    """ Return Data is stationary if p-value <= 0.05 """
+
+    fuller_test = adfuller(data)
+    print('P-value: ',fuller_test[1])
+    if fuller_test[1] <= 0.05:
+        print('Reject null hypothesis, data is stationary')
+    else:
+        print('Do not reject null hypothesis, data is not stationary')
+
+# ADF test for Production series
+test_p_value(df1['Close'])
+
+df1['Log_Close'] = np.log(df1['Close'])
+
+df1 = df1[~df1.isin([np.nan, np.inf, -np.inf]).any(1)]
+
+# Decompose time series # Check the error for multiplicative - 0 and negative values
+decomp = seasonal_decompose(x=df1['Log_Close'],model='additive', extrapolate_trend='freq', period=1)
+fig = decomp.plot()
+fig.set_size_inches(14,7)
+
+# Decompose time series # Check the error for multiplicative - 0 and negative values
+decomp = seasonal_decompose(x=df1['Log_Close'],model='multiplicative', extrapolate_trend='freq', period=1)
+fig = decomp.plot()
+fig.set_size_inches(14,7)
+
+# Decompose time series # Check the error for multiplicative - 0 and negative values
+decomp = seasonal_decompose(x=df1['Close'],model='additive', extrapolate_trend='freq', period=1)
+fig = decomp.plot()
+fig.set_size_inches(14,7)
+
+# Perform First order differencing # Apply on the log transformation
+#df1['Log_Close'] = np.log(df1['Close'])
+df1['First_diff'] = df1['Log_Close'] - df1['Log_Close'].shift(1)
+df1['First_diff'].plot()
+
+df1 = df1[~df1.isin([np.nan, np.inf, -np.inf]).any(1)]
+
+# ADF test for First order difference
+#df1['First_diff'].fillna()
+test_p_value(df1['First_diff'].fillna(0))
+
+# Lag Plot
+from pandas.plotting import lag_plot
+plt.figure(figsize=(17,7))
+lag_plot(df1['Log_Close'], lag=1)
+plt.title('Autocorrelation plot')
+
+# Visualize PACF
+plot_pacf(df1['Close'])
+plt.xlabel("Lag")
+plt.ylabel("PACF")
+plt.show()
+plt.close()
+
+plot_pacf(df1['Log_Close'],lags=40)
+plt.xlabel("Lag")
+plt.ylabel("PACF")
+plt.show()
+plt.close()
+
+# Visualize PACF on the First order difference
+plot_pacf(df1['First_diff'])
+plt.xlabel("Lag")
+plt.ylabel("PACF")
+plt.show()
+plt.close()
+
+# Visualize data
+plt.plot(df1['Log_Close'], label="Closing Value")
+plt.xlabel("Time")
+plt.legend()
+plt.show()
+plt.close()
+
+# Visualize ACF
+plot_acf(df1['Close'],lags=40)
+plt.xlabel("Lag")
+plt.ylabel("ACF")
+plt.show()
+plt.close()
+
+# Visualize ACF
+plot_acf(df1['Log_Close'],lags=40)
+plt.xlabel("Lag")
+plt.ylabel("ACF")
+plt.show()
+plt.close()
+
+# Visualize ACF on First Diff
+plot_acf(df1['First_diff'],lags=40)
+plt.xlabel("Lag")
+plt.ylabel("ACF")
+plt.show()
+plt.close()
+
+df2 = pd.read_csv('/content/BTC.csv')
+df2['Date'] = pd.to_datetime(df2['Date'],format='%Y-%m')
+df2 = df2.set_index('Date')
+df2.head()
+df2.info()
+
+df2 = df2.drop(columns=['Open','High','Low','Adj Close','Volume'],axis=1)
+df2 = df2.fillna(0)
+df2.tail()
+
+# Create an AR model
+regr = sm.tsa.AR(df2['Close']).fit(maxlag=2)
+# Predict next 50 instances
+fore = regr.predict(start=len(df2['Close']), end=len(df2['Close']) + 50)
+
+# Visualize forecasts
+plt.figure(figsize=(15,15))
+df2[1000:].plot(xlabel="Time", ylabel="Closing Price", legend=False)
+fore.plot(marker="o")
+plt.show()
+plt.close()
+
+# Create an AR model
+#df1['Log_Close'] = np.log(df1['Close'])
+regr = sm.tsa.AR(df1['Log_Close']).fit(maxlag=2)
+# Predict next 50 instances
+fore = np.exp(regr.predict(start=len(df1['Log_Close']), end=len(df1['Log_Close']) + 50))
+
+# Create ARMA(p=6, q=4) model
+arm = sm.tsa.ARIMA(df1['Log_Close'], order=(1,1,0))
+r2 = arm.fit()
+print(r2.summary())
+
+# Create ARMA(p=1, q=5) model
+df1['First_diff'] = df1['First_diff'].fillna(0)
+arm3 = sm.tsa.ARIMA(df1.Log_Close, order=(6,1,4))
+r4 = arm3.fit()
+print(r4.summary())
+
+!pip install pmdarima
+
+# Fit the model
+import pmdarima as pm
+model = pm.auto_arima(df1.Log_Close, seasonal=False,m=0) # m is seasonal term
+
+# Make forecast
+forecasts = model.predict()  # predict 1 step into the future
+
+# Predict present data
+df1['prediction'] = r2.predict()
+df1[['Close','prediction']].plot(figsize=(12,8))
+plt.ylabel("Closing Price")
+plt.show()
+plt.close()
+
+from pandas.tseries.offsets import DateOffset
+# Create extra index dates
+extra_dates = [df1.index[-1] + DateOffset(days=d) for d in range (1,25)]
+extra_dates
+
+# Create new dataframe with extra index dates
+forecast_df = pd.DataFrame(index=extra_dates,columns=df1.columns)
+forecast_df.head()
+
+# Concat dataframes
+final_df = pd.concat([df1,forecast_df])
+final_df.tail()
+
+# Visualize prediction for extra index dates
+final_df['prediction'] = r2.predict(start=len(df1), end=len(df1)+25)
+final_df[['Close','prediction']].plot(figsize=(20,8))
+final_df[['prediction']].plot(figsize=(12,8),color='green',marker='o')
+plt.xlabel("Date")
+plt.ylabel("Closing Price")
+plt.show()
+
+train_data, test_data = df1[0:int(len(df1)*0.8)], df1[int(len(df1)*0.8):] # Train and test split
+plt.figure(figsize=(17,7))
+plt.title('Stock Prices')
+plt.xlabel('Dates')
+plt.ylabel('Prices')
+plt.plot(train_data['Close'], 'blue', label='Training Data') #Plot train data in blue color
+plt.plot(test_data['Close'], 'red', label='Testing Data')  # Plot test data in red color
+#plt.xticks(np.arange(0,7982, 1300), df1['Date'][0:7982:1300])
+plt.legend()
+plt.show()
+
+def  Mean_absolute_percentage_error(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+    
+# ARIMA model # Put the training outside the loop
+train_ar = train_data['Close'].values
+test_ar = test_data['Close'].values
+
+history = [x for x in train_ar]
+    
+    
+predictions = list()
+
+for t in range(len(test_ar)):
+    model = sm.tsa.ARIMA(history, order=(1,1,0))
+    model_fit = model.fit(disp=0)
+    #print(model_fit.aic,model_fit)
+    # Above, disp=0 setting turns off the large amount of debug information provided
+    # regarding the fit of the regression model.
+    output = model_fit.forecast() # one-step forecast
+    yhat = output[0]
+    predictions.append(yhat)
+    obs = test_ar[t]
+    #history.append(obs) # Commenting out
+    history.append(yhat) # Fixed the bug
+    print('predicted=%f, expected=%f' % (yhat, obs))
+
+error = Mean_absolute_percentage_error(test_ar, predictions)
+print('Mean absolute percentage error: %.3f' % error)
+
+# Plot the predictions
+plt.figure(figsize=(17,7))
+plt.plot(train_data['Close'], 'green', color='blue', label='Training Data')
+plt.plot(test_data.index, predictions, color='green',marker='o', linestyle='dashed', label='Predicted Price')
+plt.plot(test_data.index, test_data['Close'], color='red', label='Actual Price')
+plt.title('Stock Prices Prediction')
+plt.xlabel('Dates')
+plt.ylabel('Prices')
+#plt.xticks(np.arange(0,7982, 1300), df1['Date'][0:7982:1300])
+plt.legend()
